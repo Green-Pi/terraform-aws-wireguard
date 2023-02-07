@@ -60,7 +60,7 @@ fi
 if [[ "${use_ssm}" == "true" ]] && [[ ! -z "${wg_server_private_key_aws_ssm_name}" ]]; then
   export REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
   export AWS_SSM_PARAMETER=$(aws ssm get-parameter --name "${wg_server_private_key_aws_ssm_name}" --with-decryption --region $${REGION} | jq -r .Parameter.Value)
-  sed -i "s/AWS_SSM_PARAMETER/$AWS_SSM_PARAMETER/g" /etc/wireguard/wg0.conf
+  sed -i "s#AWS_SSM_PARAMETER#$AWS_SSM_PARAMETER#g" /etc/wireguard/wg0.conf
 fi
 
 chown -R root:root /etc/wireguard/
