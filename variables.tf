@@ -7,7 +7,7 @@ variable "ssh_key_id" {
 }
 
 variable "instance_type" {
-  default     = "t4g.micro"
+  default     = "t3a.nano"
   description = "The machine type to launch, some machines may offer higher throughput for higher use cases."
 }
 
@@ -59,6 +59,12 @@ variable "use_eip" {
   type        = bool
   default     = false
   description = "Create and use an Elastic IP in user-data on wg server startup."
+}
+
+variable "enable_ssm_instance_connect" {
+  type        = bool
+  default     = false
+  description = "Allow Session Manager connection to instance through AmazonSSMManagedEC2InstanceDefaultPolicy"
 }
 
 variable "use_ssm" {
