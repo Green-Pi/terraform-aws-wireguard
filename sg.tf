@@ -14,14 +14,17 @@ resource "aws_security_group" "sg_wireguard" {
     from_port   = var.wg_server_port
     to_port     = var.wg_server_port
     protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.ingress_vpn_source_cidr_blocks
   }
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = length(var.ingress_ssh_source_cidr_blocks) > 0 ? [ "dummy" ] : [ ]
+    content {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = var.ingress_ssh_source_cidr_blocks
+    }
   }
 
   dynamic "ingress" {

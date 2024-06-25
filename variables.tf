@@ -7,7 +7,7 @@ variable "ssh_key_id" {
 }
 
 variable "instance_type" {
-  default     = "t2.micro"
+  default     = "t4g.micro"
   description = "The machine type to launch, some machines may offer higher throughput for higher use cases."
 }
 
@@ -128,4 +128,14 @@ variable "route53_geo" {
   type        = any
   default     = null
   description = "Route53 Geolocation config."
+}
+
+variable "ingress_ssh_source_cidr_blocks" {
+  type        = list(string)
+  default     = [ ]
+}
+
+variable "ingress_vpn_source_cidr_blocks" {
+  type        = list(string)
+  default     = [ "0.0.0.0/0" ]
 }
