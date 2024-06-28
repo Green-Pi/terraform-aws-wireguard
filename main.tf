@@ -10,7 +10,7 @@ resource "aws_eip" "wireguard" {
 resource "aws_route53_record" "wireguard" {
   count           = var.use_route53 && var.use_eip ? 1 : 0
   allow_overwrite = true
-  set_identifier  = "wireguard-${var.region}"
+  set_identifier  = var.route53_geo != null ? "wireguard-${var.region}" : null
   zone_id         = var.route53_hosted_zone_id
   name            = var.route53_record_name
   type            = "A"
@@ -18,7 +18,7 @@ resource "aws_route53_record" "wireguard" {
   records         = [aws_eip.wireguard[0].public_ip]
 
   dynamic "geolocation_routing_policy" {
-    for_each = try(length(var.route53_geo.policy) > 0 ? var.route53_geo.policy : tomap(false), {})
+    for_each = try(var.route53_geo.policy, [])
 
     content {
       continent = geolocation_routing_policy.value.continent
