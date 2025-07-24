@@ -38,22 +38,26 @@ data "template_file" "wg_client_data_json" {
   }
 }
 
-data "aws_ami" "ubuntu" {
+data "aws_ec2_instance_type" "wireguard" {
+  instance_type = var.instance_type
+}
+
+data "aws_ami" "al2023" {
   most_recent = true
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+    values = ["al2023-ami-minimal-*-kernel-6.12-*"]
   }
   filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
+    name   = "architecture"
+    values = data.aws_ec2_instance_type.wireguard.supported_architectures
   }
-  owners = ["099720109477"] # Canonical
+  owners = ["amazon"]
 }
 
 resource "aws_launch_configuration" "wireguard_launch_config" {
   name_prefix          = "wireguard-${var.env}-${var.region}-"
-  image_id             = var.ami_id == null ? data.aws_ami.ubuntu.id : var.ami_id
+  image_id             = var.ami_id == null ? data.aws_ami.al2023.id : var.ami_id
   instance_type        = var.instance_type
   key_name             = var.ssh_key_id
   iam_instance_profile = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)

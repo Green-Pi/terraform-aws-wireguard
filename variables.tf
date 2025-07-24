@@ -7,7 +7,7 @@ variable "ssh_key_id" {
 }
 
 variable "instance_type" {
-  default     = "t3a.nano"
+  default     = "t4g.nano"
   description = "The machine type to launch, some machines may offer higher throughput for higher use cases."
 }
 
