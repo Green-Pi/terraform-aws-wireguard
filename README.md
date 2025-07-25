@@ -36,7 +36,7 @@ Before using this module, you'll need to generate a key pair for your server and
 |`wg_persistent_keepalive`|`integer`|Optional - defaults to `25`|Regularity of Keepalives, useful for NAT stability.|
 |`ami_id`|`string`|Optional - defaults to the newest Ubuntu 20.04 AMI|AMI to use for the VPN server.|
 |`wg_server_interface`|`string`|Optional - defaults to eth0|Server interface to route traffic to for installations forwarding traffic to private networks.|
-|`use_route53`|`bool`|Optional - default to `false`|Create Route53 record for Wireguard server (requires `use_eip` to be `true`).|
+|`use_route53`|`bool`|Optional - default to `false`|Create Route53 record for Wireguard server (requires var. `public_ip_mode` to be `eip`).|
 |`route53_hosted_zone_id`|`string`|Optional - if `use_route53` is not used.|Route53 Hosted zone ID for Wireguard server Route53 record.|
 |`route53_record_name`|`string`|Optional - if `use_route53` is not used.|Route53 Record Name for Wireguard server.|
 |`use_prometheus`|`bool`|Optional - defaults to `false`.|Install and use the promethus node exporting tools.|
