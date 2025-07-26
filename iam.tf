@@ -28,7 +28,7 @@ resource "aws_iam_policy" "wireguard_policy" {
   name        = "tf-wireguard-${var.env}-${var.region}"
   description = "Terraform Managed. Allows Wireguard instance to attach EIP."
   policy      = data.aws_iam_policy_document.wireguard_policy_doc.json
-  count       = (var.public_ip_mode == "eip" ? 1 : 0) # only used for EIP mode
+  count       = (var.public_ip_mode == "eip" || var.use_ssm ? 1 : 0) # only used for EIP mode or SSM key storage
 }
 
 resource "aws_iam_role" "wireguard_role" {
@@ -42,7 +42,7 @@ resource "aws_iam_role" "wireguard_role" {
 resource "aws_iam_role_policy_attachment" "wireguard_roleattach" {
   role       = aws_iam_role.wireguard_role[0].name
   policy_arn = aws_iam_policy.wireguard_policy[0].arn
-  count      = (var.public_ip_mode == "eip" ? 1 : 0) # only used for EIP mode
+  count      = (var.public_ip_mode == "eip" || var.use_ssm ? 1 : 0) # only used for EIP mode or SSM key storage
 }
 
 resource "aws_iam_instance_profile" "wireguard_profile" {

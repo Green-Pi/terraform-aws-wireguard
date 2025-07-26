@@ -41,16 +41,16 @@ EOF
 export ENI=$(ip route get 8.8.8.8 | grep 8.8.8.8 | awk '{print $5}')
 sed -i "s/ENI/$ENI/g" /etc/wireguard/wg0.conf
 
+export REGION=$(TOKEN=`curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` && curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone -s | sed 's/[a-z]$//')
+
 # Use EIP if it is provided
 if [ "${use_eip}" != "disabled" ]; then
   export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-  export REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
   aws --region $${REGION} ec2 associate-address --allocation-id ${eip_id} --instance-id $${INSTANCE_ID}
 fi
 
 # Use SSM if it is provided
 if [[ "${use_ssm}" == "true" ]] && [[ ! -z "${wg_server_private_key_aws_ssm_name}" ]]; then
-  export REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
   export AWS_SSM_PARAMETER=$(aws ssm get-parameter --name "${wg_server_private_key_aws_ssm_name}" --with-decryption --region $${REGION} | jq -r .Parameter.Value)
   sed -i "s#AWS_SSM_PARAMETER#$AWS_SSM_PARAMETER#g" /etc/wireguard/wg0.conf
 fi
