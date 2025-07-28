@@ -41,11 +41,12 @@ EOF
 export ENI=$(ip route get 8.8.8.8 | grep 8.8.8.8 | awk '{print $5}')
 sed -i "s/ENI/$ENI/g" /etc/wireguard/wg0.conf
 
-export REGION=$(TOKEN=`curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` && curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone -s | sed 's/[a-z]$//')
+export TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+export REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone -s | sed 's/[a-z]$//')
+export INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id -s)
 
 # Use EIP if it is provided
 if [ "${use_eip}" != "disabled" ]; then
-  export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
   aws --region $${REGION} ec2 associate-address --allocation-id ${eip_id} --instance-id $${INSTANCE_ID}
 fi
 
