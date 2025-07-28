@@ -1,5 +1,5 @@
 resource "aws_eip" "wireguard" {
-  count = var.use_eip ? 1 : 0
+  count = var.public_ip_mode == "eip" ? 1 : 0
 
   domain = "vpc"
   tags = {
@@ -8,7 +8,7 @@ resource "aws_eip" "wireguard" {
 }
 
 resource "aws_route53_record" "wireguard" {
-  count           = var.use_route53 && var.use_eip ? 1 : 0
+  count           = var.use_route53 && var.public_ip_mode == "eip" ? 1 : 0
   allow_overwrite = true
   set_identifier  = var.route53_geo != null ? "wireguard-${var.region}" : null
   zone_id         = var.route53_hosted_zone_id
@@ -38,39 +38,43 @@ data "template_file" "wg_client_data_json" {
   }
 }
 
-data "aws_ami" "ubuntu" {
+data "aws_ec2_instance_type" "wireguard" {
+  instance_type = var.instance_type
+}
+
+data "aws_ami" "al2023" {
   most_recent = true
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+    values = ["al2023-ami-minimal-*-kernel-6.12-*"]
   }
   filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
+    name   = "architecture"
+    values = data.aws_ec2_instance_type.wireguard.supported_architectures
   }
-  owners = ["099720109477"] # Canonical
+  owners = ["amazon"]
 }
 
 resource "aws_launch_configuration" "wireguard_launch_config" {
   name_prefix          = "wireguard-${var.env}-${var.region}-"
-  image_id             = var.ami_id == null ? data.aws_ami.ubuntu.id : var.ami_id
+  image_id             = var.ami_id == null ? data.aws_ami.al2023.id : var.ami_id
   instance_type        = var.instance_type
   key_name             = var.ssh_key_id
-  iam_instance_profile = (var.use_eip ? aws_iam_instance_profile.wireguard_profile[0].name : null)
+  iam_instance_profile = (length(aws_iam_instance_profile.wireguard_profile) > 0 ? aws_iam_instance_profile.wireguard_profile[0].name : null)
   user_data = templatefile("${path.module}/templates/user-data.txt", {
     wg_server_private_key              = var.use_ssm ? "AWS_SSM_PARAMETER" : var.wg_server_private_key,
     wg_server_private_key_aws_ssm_name = var.use_ssm ? aws_ssm_parameter.wireguard_server_private_key[0].name : "",
     wg_server_net                      = var.wg_server_net,
     wg_server_port                     = var.wg_server_port,
     peers                              = join("\n", data.template_file.wg_client_data_json.*.rendered),
-    use_eip                            = var.use_eip ? "enabled" : "disabled",
-    eip_id                             = var.use_eip ? aws_eip.wireguard[0].id : "",
+    use_eip                            = var.public_ip_mode == "eip" ? "enabled" : "disabled",
+    eip_id                             = var.public_ip_mode == "eip" ? aws_eip.wireguard[0].id : "",
     use_ssm                            = var.use_ssm ? "true" : "false",
     use_prometheus                     = var.use_prometheus ? "true" : "false",
     wg_server_interface                = var.wg_server_interface
   })
   security_groups             = [aws_security_group.sg_wireguard.id]
-  associate_public_ip_address = var.use_eip
+  associate_public_ip_address = var.public_ip_mode != "none"
 
   lifecycle {
     create_before_destroy = true

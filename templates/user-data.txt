@@ -1,25 +1,8 @@
 #!/bin/bash -v
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confnew"
-apt-get install -y \
-  apt-transport-https \
-  ca-certificates \
-  build-essential \
-  software-properties-common \
-  unzip \
-  curl \
-  wget \
-  gnupg \
-  net-tools \
-  jq \
-  wireguard-dkms \
-  wireguard-tools && \
-  rm -rf /var/lib/apt/lists/*
 
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
-unzip awscliv2.zip && \
-rm -f awscliv2.zip && \
-./aws/install
+dnf install -y \
+  nftables \
+  wireguard-tools
 
 cat > /etc/wireguard/wg0.conf <<- EOF
 [Interface]
@@ -28,20 +11,29 @@ PrivateKey = ${wg_server_private_key}
 ListenPort = ${wg_server_port}
 PostUp = sysctl -w -q net.ipv4.ip_forward=1
 PostUp = sysctl -w -q net.ipv6.conf.all.forwarding=1
-PostUp = iptables -P FORWARD DROP
-PostUp = ip6tables -P FORWARD DROP
-PostUp = iptables -A FORWARD -i wg0 -j ACCEPT
-PostUp = ip6tables -A FORWARD -i wg0 -j ACCEPT
-PostUp = iptables -t nat -A POSTROUTING -o ENI -j MASQUERADE
-PostUp = ip6tables -t nat -A POSTROUTING -o ENI -j MASQUERADE
+
+PostUp = nft add table ip filter
+PostUp = nft add chain ip filter FORWARD '{ type filter hook forward priority filter; policy drop; }'
+PostUp = nft add rule ip filter FORWARD iifname "wg0" counter packets 0 bytes 0 accept
+PostUp = nft add rule ip filter FORWARD ct state vmap { established : accept, related : accept, invalid : drop }
+PostUp = nft add table ip nat
+PostUp = nft add chain ip nat POSTROUTING '{ type nat hook postrouting priority srcnat; policy accept; }'
+PostUp = nft add rule ip nat POSTROUTING oifname "ENI" counter packets 198 bytes 13310 masquerade
+
+PostUp = nft add table ip6 filter
+PostUp = nft add chain ip6 filter FORWARD '{ type filter hook forward priority filter; policy drop; }'
+PostUp = nft add rule ip6 filter FORWARD iifname "wg0" counter packets 0 bytes 0 accept
+PostUp = nft add rule ip6 filter FORWARD ct state vmap { established : accept, related : accept, invalid : drop }
+PostUp = nft add table ip6 nat
+PostUp = nft add chain ip6 nat POSTROUTING '{ type nat hook postrouting priority srcnat; policy accept; }'
+PostUp = nft add rule ip6 nat POSTROUTING oifname "ENI" counter packets 198 bytes 13310 masquerade
+
 PostDown = sysctl -w -q net.ipv4.ip_forward=0
 PostDown = sysctl -w -q net.ipv6.conf.all.forwarding=0
-PostDown = iptables -P FORWARD ACCEPT
-PostDown = ip6tables -P FORWARD ACCEPT
-PostDown = iptables -D FORWARD -i wg0 -j ACCEPT
-PostDown = ip6tables -D FORWARD -i wg0 -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -o ENI -j MASQUERADE
-PostDown = ip6tables -t nat -D POSTROUTING -o ENI -j MASQUERADE
+PostDown = nft delete table ip filter
+PostDown = nft delete table ip nat
+PostDown = nft delete table ip6 filter
+PostDown = nft delete table ip6 nat
 
 ${peers}
 EOF
@@ -49,16 +41,17 @@ EOF
 export ENI=$(ip route get 8.8.8.8 | grep 8.8.8.8 | awk '{print $5}')
 sed -i "s/ENI/$ENI/g" /etc/wireguard/wg0.conf
 
+export TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+export REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone -s | sed 's/[a-z]$//')
+export INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id -s)
+
 # Use EIP if it is provided
 if [ "${use_eip}" != "disabled" ]; then
-  export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-  export REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
   aws --region $${REGION} ec2 associate-address --allocation-id ${eip_id} --instance-id $${INSTANCE_ID}
 fi
 
 # Use SSM if it is provided
 if [[ "${use_ssm}" == "true" ]] && [[ ! -z "${wg_server_private_key_aws_ssm_name}" ]]; then
-  export REGION=$(curl -fsq http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/[a-z]$//')
   export AWS_SSM_PARAMETER=$(aws ssm get-parameter --name "${wg_server_private_key_aws_ssm_name}" --with-decryption --region $${REGION} | jq -r .Parameter.Value)
   sed -i "s#AWS_SSM_PARAMETER#$AWS_SSM_PARAMETER#g" /etc/wireguard/wg0.conf
 fi

@@ -4,7 +4,7 @@ instance_type: t2.medium
 vpc_id: YOUR_VPC_ID_HERE
 subnet_ids:
   - YOUR_SUBNET_ID_HERE
-use_eip: true
+public_ip_mode: "eip"
 use_ssm: true
 use_route53: true
 route53_hosted_zone_id: Z06401293ABC321ODE001

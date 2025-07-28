@@ -7,7 +7,7 @@ variable "ssh_key_id" {
 }
 
 variable "instance_type" {
-  default     = "t3a.nano"
+  default     = "t4g.nano"
   description = "The machine type to launch, some machines may offer higher throughput for higher use cases."
 }
 
@@ -55,10 +55,12 @@ variable "wg_persistent_keepalive" {
   description = "Persistent Keepalive - useful for helping connection stability over NATs."
 }
 
-variable "use_eip" {
-  type        = bool
-  default     = false
-  description = "Create and use an Elastic IP in user-data on wg server startup."
+variable "public_ip_mode" {
+  type = string
+  validation {
+    condition     = contains(["none", "random", "eip"], var.public_ip_mode)
+    error_message = "Must be either \"none\", \"random\" or \"eip\"."
+  }
 }
 
 variable "enable_ssm_instance_connect" {
