@@ -60,7 +60,7 @@ resource "aws_launch_configuration" "wireguard_launch_config" {
   image_id             = var.ami_id == null ? data.aws_ami.al2023.id : var.ami_id
   instance_type        = var.instance_type
   key_name             = var.ssh_key_id
-  iam_instance_profile = (var.public_ip_mode == "eip" ? aws_iam_instance_profile.wireguard_profile[0].name : null)
+  iam_instance_profile = (length(aws_iam_instance_profile.wireguard_profile) > 0 ? aws_iam_instance_profile.wireguard_profile[0].name : null)
   user_data = templatefile("${path.module}/templates/user-data.txt", {
     wg_server_private_key              = var.use_ssm ? "AWS_SSM_PARAMETER" : var.wg_server_private_key,
     wg_server_private_key_aws_ssm_name = var.use_ssm ? aws_ssm_parameter.wireguard_server_private_key[0].name : "",
