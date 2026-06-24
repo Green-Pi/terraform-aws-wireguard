@@ -26,18 +26,6 @@ resource "aws_route53_record" "wireguard" {
   }
 }
 
-data "template_file" "wg_client_data_json" {
-  template = file("${path.module}/templates/client-data.tpl")
-  count    = length(var.wg_clients)
-
-  vars = {
-    friendly_name        = var.wg_clients[count.index].friendly_name
-    client_pub_key       = var.wg_clients[count.index].public_key
-    client_ip            = var.wg_clients[count.index].client_ip
-    persistent_keepalive = var.wg_persistent_keepalive
-  }
-}
-
 data "aws_ec2_instance_type" "wireguard" {
   instance_type = var.instance_type
 }
@@ -66,7 +54,12 @@ resource "aws_launch_configuration" "wireguard_launch_config" {
     wg_server_private_key_aws_ssm_name = var.use_ssm ? aws_ssm_parameter.wireguard_server_private_key[0].name : "",
     wg_server_net                      = var.wg_server_net,
     wg_server_port                     = var.wg_server_port,
-    peers                              = join("\n", data.template_file.wg_client_data_json.*.rendered),
+    peers                              = join("\n", [for client in var.wg_clients : templatefile("${path.module}/templates/client-data.tpl", {
+      friendly_name        = client.friendly_name
+      client_pub_key       = client.public_key
+      client_ip            = client.client_ip
+      persistent_keepalive = var.wg_persistent_keepalive
+    })]),
     use_eip                            = var.public_ip_mode == "eip" ? "enabled" : "disabled",
     eip_id                             = var.public_ip_mode == "eip" ? aws_eip.wireguard[0].id : "",
     use_ssm                            = var.use_ssm ? "true" : "false",
