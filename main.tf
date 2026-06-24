@@ -43,13 +43,12 @@ data "aws_ami" "al2023" {
   owners = ["amazon"]
 }
 
-resource "aws_launch_configuration" "wireguard_launch_config" {
-  name_prefix          = "wireguard-${var.env}-${var.region}-"
-  image_id             = var.ami_id == null ? data.aws_ami.al2023.id : var.ami_id
-  instance_type        = var.instance_type
-  key_name             = var.ssh_key_id
-  iam_instance_profile = (length(aws_iam_instance_profile.wireguard_profile) > 0 ? aws_iam_instance_profile.wireguard_profile[0].name : null)
-  user_data = templatefile("${path.module}/templates/user-data.txt", {
+resource "aws_launch_template" "wireguard_launch_template" {
+  name_prefix   = "wireguard-${var.env}-${var.region}-"
+  image_id      = var.ami_id == null ? data.aws_ami.al2023.id : var.ami_id
+  instance_type = var.instance_type
+  key_name      = var.ssh_key_id
+  user_data = base64encode(templatefile("${path.module}/templates/user-data.txt", {
     wg_server_private_key              = var.use_ssm ? "AWS_SSM_PARAMETER" : var.wg_server_private_key,
     wg_server_private_key_aws_ssm_name = var.use_ssm ? aws_ssm_parameter.wireguard_server_private_key[0].name : "",
     wg_server_net                      = var.wg_server_net,
@@ -65,9 +64,22 @@ resource "aws_launch_configuration" "wireguard_launch_config" {
     use_ssm                            = var.use_ssm ? "true" : "false",
     use_prometheus                     = var.use_prometheus ? "true" : "false",
     wg_server_interface                = var.wg_server_interface
-  })
-  security_groups             = [aws_security_group.sg_wireguard.id]
-  associate_public_ip_address = var.public_ip_mode != "none"
+  }))
+
+  dynamic "iam_instance_profile" {
+    for_each = length(aws_iam_instance_profile.wireguard_profile) > 0 ? [1] : []
+
+    content {
+      name = aws_iam_instance_profile.wireguard_profile[0].name
+    }
+  }
+
+  network_interfaces {
+    associate_public_ip_address = var.public_ip_mode != "none"
+    security_groups             = [aws_security_group.sg_wireguard.id]
+  }
+
+  update_default_version = true
 
   lifecycle {
     create_before_destroy = true
@@ -75,14 +87,17 @@ resource "aws_launch_configuration" "wireguard_launch_config" {
 }
 
 resource "aws_autoscaling_group" "wireguard_asg" {
-  name                 = aws_launch_configuration.wireguard_launch_config.name
-  launch_configuration = aws_launch_configuration.wireguard_launch_config.name
+  name = aws_launch_template.wireguard_launch_template.name
+  launch_template {
+    id      = aws_launch_template.wireguard_launch_template.id
+    version = "$Latest"
+  }
   min_size             = var.asg_min_size
   desired_capacity     = var.asg_desired_capacity
   max_size             = var.asg_max_size
   vpc_zone_identifier  = var.subnet_ids
   health_check_type    = "EC2"
-  termination_policies = ["OldestLaunchConfiguration", "OldestInstance"]
+  termination_policies = ["OldestLaunchTemplate", "OldestInstance"]
   target_group_arns    = var.target_group_arns
 
   lifecycle {
@@ -91,7 +106,7 @@ resource "aws_autoscaling_group" "wireguard_asg" {
 
   tag {
       key                 = "Name"
-      value               = aws_launch_configuration.wireguard_launch_config.name
+      value               = aws_launch_template.wireguard_launch_template.name
       propagate_at_launch = true
     }
   tag {
